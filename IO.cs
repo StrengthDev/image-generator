@@ -2,6 +2,8 @@
 using System.IO;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using NumSharp;
 
 namespace image_generator
@@ -66,29 +68,77 @@ namespace image_generator
             }
         }
 
-        public static NDArray GetTrainData(string path)
+        private static void GetTrainData(string[] images, int index, Task[] threads, NDArray[] results)
         {
-            bool first = true;
-            NDArray data = null;
-            foreach(string p in Directory.GetFiles(path))
+            int total = images.Length;
+            int base_n = total / threads.Length;
+            int mod = total % threads.Length;
+            int start, end;
+            if(index < mod)
             {
-                if(p.EndsWith(".png"))
+                start = index * (base_n + 1);
+                end = start + base_n + 1;
+            } else
+            {
+                start = mod * (base_n + 1) + (index - mod) * base_n;
+                end = start + base_n;
+            }
+            NDArray data = null;
+            for(int i = start; i < end; i++)
+            {
+                Console.WriteLine($"Thread {index} reading file({i}).. " + images[i]);
+                using (Bitmap bmp = new Bitmap(images[i]))
                 {
-                    Console.WriteLine("Processing.. " + p);
-                    using(Bitmap bmp = new Bitmap(p))
+                    if (i == start)
                     {
-                        if(first)
-                        {
-                            data = ImageToMatrix(bmp);
-                            first = false;
-                        } else
-                        {
-                            data = np.concatenate((data, ImageToMatrix(bmp)), 0); //TODO: make this multi-threaded
-                        }
+                        data = ImageToMatrix(bmp);
+                    }
+                    else
+                    {
+                        data = np.concatenate((data, ImageToMatrix(bmp)), 0);
                     }
                 }
             }
-            return data;
+            if(index % 2 == 1)
+            {
+                results[index] = data;
+                return;
+            }
+            if(index == threads.Length - 1)
+            {
+                results[index] = data;
+                return;
+            }
+            for(int d = 1; index % (d * 2) == 0 && d + index < threads.Length; d *= 2)
+            {
+                threads[index + d].Wait();
+                Console.WriteLine($"Thread {index} concatenating with {index + d}");
+                data = np.concatenate((data, results[index + d]), 0);
+                results[index + d] = null;
+            }
+            results[index] = data;
+        }
+
+        public static NDArray GetTrainData(string path, uint nthreads = 0)
+        {
+            List<string> images_list = new List<string>();
+            foreach (string p in Directory.GetFiles(path))
+            {
+                if (p.EndsWith(".png"))
+                {
+                    images_list.Add(p);
+                }
+            }
+            string[] images_array = images_list.ToArray();
+            Task[] threads = new Task[nthreads];
+            NDArray[] results = new NDArray[nthreads];
+            for (int i = 1; i < nthreads; i++)
+            {
+                int index = i;
+                threads[i] = Task.Run(() => GetTrainData(images_array, index, threads, results));
+            }
+            GetTrainData(images_array, 0, threads, results);
+            return results[0];
         }
     }
 }

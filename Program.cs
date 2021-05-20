@@ -18,7 +18,7 @@ namespace image_generator
         {
             Console.WriteLine("Training folder path:");
             string trainPath = Console.ReadLine();
-            NDArray trainData = IO.GetTrainData(trainPath);
+            NDArray trainData = IO.GetTrainData(trainPath, 16);
             Console.WriteLine("Done processing data");
         }
     }
