@@ -16,10 +16,12 @@ namespace image_generator
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Training folder path:");
+            Console.WriteLine("Input training folder path:");
             string trainPath = Console.ReadLine();
             NDArray trainData = IO.GetTrainData(trainPath, 16);
             Console.WriteLine("Done processing data");
+
+
         }
     }
 }
